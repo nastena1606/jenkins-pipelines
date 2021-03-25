@@ -138,6 +138,28 @@ pipeline {
                 }
             }
         }
+        stage('Setup k3d') {
+            steps {
+                script {
+                    withEnv(['JENKINS_NODE_COOKIE=dontKillMe']) {
+                        sh """
+                            export VM_NAME=\$(cat VM_NAME)
+                        """
+                        node(env.VM_NAME){
+                            sh """
+                                set -o errexit
+                                set -o xtrace
+                                sudo yum -y install curl
+                                curl -s https://raw.githubusercontent.com/rancher/k3d/main/install.sh | bash
+                                curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                                sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                                sleep 5
+                            """
+                        }
+                    }
+                }
+            }
+        }
         stage('Run Operator Setup Script') {
             steps {
                 script {
@@ -160,6 +182,10 @@ pipeline {
                                 sudo chown -R $USER $HOME/.kube $HOME/.minikube
                                 sed -i s:/root:$HOME:g $HOME/.kube/config
                                 bash /srv/pmm-qa/pmm-tests/minikube_operators_setup.sh ${OPERATOR_VERSION}
+                                k3d cluster create test --api-port $(ip route get 8.8.8.8 | awk -F"src " 'NR==1{split($2,a," ");print a[1]}'):6443 --servers 1 --agents 4 --kubeconfig-update-default=false
+                                k3d kubeconfig get test > k3d-config.yaml
+                                export KUBECONFIG=~/k3d-config.yaml
+                                bash /srv/pmm-qa/pmm-tests/k3d-operator-setup.sh ${OPERATOR_VERSION}
                                 sleep 10
                             """
                         }
@@ -210,13 +236,19 @@ pipeline {
                                 scp -i "${KEY_PATH}" -o ConnectTimeout=1 -o StrictHostKeyChecking=no \
                                     ${USER}@${IP}:workspace/kubernetes-cluster-staging/kubeconfig.yml \
                                     kubeconfig
+                                scp -i "${KEY_PATH}" -o ConnectTimeout=1 -o StrictHostKeyChecking=no \
+                                    ${USER}@${IP}:workspace/kubernetes-cluster-staging/k3d-config.yaml \
+                                    k3d-config
                             """
                         }
                         script {
                             env.KUBECONFIG = sh(returnStdout: true, script: "cat kubeconfig").trim()
+                            env.K3DCONFIG = sh(returnStdout: true, script: "cat k3d-config").trim()
                         }
                         stash includes: 'kubeconfig', name: 'kubeconfig'
+                        stash includes: 'k3d-config', name: 'k3d-config'
                         archiveArtifacts 'kubeconfig'
+                        archiveArtifcats 'k3d-config'
                     }
                 }
             }
