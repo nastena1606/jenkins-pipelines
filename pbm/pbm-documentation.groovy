@@ -8,7 +8,7 @@ pipeline {
     }
     parameters {
         string(
-            defaultValue: 'https://github.com/percona/percona-backup-mongodb.git',
+            defaultValue: 'https://github.com/percona/pbm-docs.git',
             description: 'Git URL',
             name: 'GIT_REPO')
         string(
@@ -33,18 +33,17 @@ pipeline {
         stage('Checkout') {
             steps {
                 deleteDir()
-                git poll: false, branch: GIT_BRANCH, url: 'https://github.com/percona/percona-backup-mongodb.git'
+                git poll: false, branch: GIT_BRANCH, url: 'https://github.com/percona/pbm-docs.git'
             }
         }
         stage('Generate html files') {
             steps {
                 sh '''
-                    cd doc
                     sg docker -c "
                         docker run -i -v `pwd`:/doc -e USER_ID=$UID ddidier/sphinx-doc:0.9.0 make clean html
                     "
                 '''
-                stash name: 'html-files', includes: 'doc/build/html/'
+                stash name: 'html-files', includes: 'build/html/'
             }
         }
         stage('Publish html files') {
@@ -65,13 +64,12 @@ pipeline {
             when {expression { params.BUILD_PDF == true }}
             steps {
                 sh '''
-                    cd doc
                     sg docker -c "
                         docker run -i -v `pwd`:/doc -e USER_ID=$UID ddidier/sphinx-doc:0.9.0 make clean latex
                         docker run -i -v `pwd`:/doc -e USER_ID=$UID ddidier/sphinx-doc:0.9.0 make clean latexpdf
                     "
                 '''
-                archiveArtifacts 'doc/build/latex/*.pdf'
+                archiveArtifacts 'build/latex/*.pdf'
             }
         }
     }

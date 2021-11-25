@@ -12,9 +12,10 @@
     pipeline-scm:
       scm:
         - git:
-            url: https://github.com/Percona-Lab/jenkins-pipelines.git
+            url: https://github.com/nastena1606/jenkins-pipelines.git
             branches:
             - 'master'
+            - 'PBM-747-Update-job-with-new-repo'
             wipe-workspace: false
       lightweight-checkout: true
       script-path: pbm/pbm-documentation.groovy
